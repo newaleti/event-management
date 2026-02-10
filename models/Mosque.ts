@@ -16,6 +16,9 @@ const mosqueSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+// Prevent duplicate mosques by name + address
+mosqueSchema.index({ name: 1, address: 1 }, { unique: true });
+
 // This index allows us to search for mosques "near" a user's location
 mosqueSchema.index({ location: "2dsphere" });
 

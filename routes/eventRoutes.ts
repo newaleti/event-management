@@ -15,13 +15,22 @@ router.post(
         return res.status(401).json({ message: "Not authorized" });
       }
 
-      const { title, description, date, mosque, eventType, capacity, image } =
-        req.body;
+      const {
+        title,
+        description,
+        date,
+        mosque,
+        eventType,
+        capacity,
+        image,
+        location,
+      } = req.body;
 
       // Basic validation
-      if (!title || !description || !date || !mosque || !image) {
+      if (!title || !description || !date || !mosque || !image || !location) {
         return res.status(400).json({
-          message: "Required fields: title, description, date, mosque, image",
+          message:
+            "Required fields: title, description, date, mosque, image, location",
         });
       }
 
@@ -39,10 +48,21 @@ router.post(
         return res.status(400).json({ message: "Invalid date" });
       }
 
+      const existing = await Event.findOne({
+        mosque,
+        title: title?.trim(),
+        date: parsedDate,
+      });
+
+      if (existing) {
+        return res.status(409).json({ message: "Event already exists" });
+      }
+
       const newEvent = new Event({
         title: title.trim(),
         description: description.trim(),
         date: parsedDate,
+        location: location.trim(),
         mosque,
         eventType: eventType || "Muhadera",
         capacity: capacity || 0,

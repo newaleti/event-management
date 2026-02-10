@@ -43,5 +43,8 @@ const eventSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+// Prevent duplicate events in same mosque by title + date
+eventSchema.index({ mosque: 1, title: 1, date: 1 }, { unique: true });
+
 const Event = mongoose.model("Event", eventSchema);
 export default Event;

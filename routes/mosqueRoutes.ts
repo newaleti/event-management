@@ -9,13 +9,19 @@ router.post("/", protect, authorize("super_admin"), async (req, res) => {
   try {
     const { name, address, coordinates, description } = req.body;
 
+    const existing = await Mosque.findOne({
+      name: name?.trim(),
+      address: address?.trim(),
+    });
+
+    if (existing) {
+      return res.status(409).json({ message: "Mosque already exists" });
+    }
+
     const newMosque = new Mosque({
-      name,
-      address,
-      location: {
-        type: "Point",
-        coordinates: coordinates, // [longitude, latitude]
-      },
+      name: name?.trim(),
+      address: address?.trim(),
+      location: { type: "Point", coordinates },
       description,
     });
 
