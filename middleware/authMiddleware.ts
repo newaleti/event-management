@@ -1,19 +1,23 @@
 import jwt from "jsonwebtoken";
 import { Request, Response, NextFunction } from "express";
+import User from "../models/User.js";
 
-export const protect = (req: Request, res: Response, next: NextFunction) => {
-  console.log("Authorization Header:", req.headers.authorization);
+export const protect = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  console.log("Authorization Header Check...");
   let token;
 
-  // Check for token in headers
+  // 1. Check for token in headers
   if (
     req.headers.authorization &&
     req.headers.authorization.startsWith("Bearer")
   ) {
     try {
-      // Get token from header
+      // 2. Extract token
       token = req.headers.authorization.split(" ")[1];
-
       const secret = process.env.JWT_SECRET;
 
       if (!secret) {
@@ -21,18 +25,31 @@ export const protect = (req: Request, res: Response, next: NextFunction) => {
         return;
       }
 
-      // Verify token
+      // 3. Verify token
       const decoded = jwt.verify(token, secret) as jwt.JwtPayload;
 
-      // Attach user info to request object
-        req.user = {
-          id: decoded.id,
-          role: decoded.role,
-          assignedMosque: decoded.assignedMosque,
-        };
+      // 4. Fetch latest user data from Database
+      // We do this so membershipStatus is always up-to-date
+      const user = await User.findById(decoded.id).select("-password");
+
+      if (!user) {
+        res
+          .status(401)
+          .json({ message: "Not authorized, user no longer exists" });
+        return;
+      }
+
+      // 5. Attach fresh user info to request object
+      req.user = {
+        id: user._id.toString(),
+        role: user.role,
+        assignedMosque: user.assignedMosque?.toString(),
+        membershipStatus: user.membershipStatus,
+      };
 
       next();
     } catch (error) {
+      console.error("Auth Middleware Error:", error);
       res.status(401).json({ message: "Not authorized, token failed" });
     }
   }
@@ -41,6 +58,7 @@ export const protect = (req: Request, res: Response, next: NextFunction) => {
     res.status(401).json({ message: "Not authorized, no token" });
   }
 };
+
 export const authorize = (...roles: string[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
     if (!req.user || !req.user.role) {

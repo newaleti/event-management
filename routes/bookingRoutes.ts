@@ -16,6 +16,18 @@ router.post("/", protect, async (req, res) => {
       return res.status(404).json({ message: "Event not found" });
     }
 
+    // Check if event is restricted and if user has the right membership status
+    if (event.accessType === "restricted") {
+      const userStatus = req.user?.membershipStatus; // Ensure your 'protect' middleware puts this in req.user
+
+      if (userStatus !== "official_member" && userStatus !== "student") {
+        return res.status(403).json({
+          message: "This event is restricted to official members or students.",
+          requiresMembership: true,
+        });
+      }
+    }
+
     // Check if event is in the past
     if (new Date(event.date) < new Date()) {
       return res.status(400).json({ message: "Cannot book a past event" });

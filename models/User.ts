@@ -38,7 +38,7 @@ const userSchema = new mongoose.Schema(
     gender: {
       type: String,
       required: true,
-      enum: ["male", "female"], 
+      enum: ["male", "female"],
     },
     age: {
       type: Number,
@@ -56,6 +56,12 @@ const userSchema = new mongoose.Schema(
       ref: "Mosque",
       default: null,
     }, // Helpful for Mosque Admins
+    // For event attendance tracking, we can add a field to track if the user is an official member or a student (if needed for special access)
+    membershipStatus: {
+      type: String,
+      enum: ["none", "official_member", "student"],
+      default: "none",
+    },
   },
   { timestamps: true },
 ); // This automatically adds 'createdAt' and 'updatedAt' fields!

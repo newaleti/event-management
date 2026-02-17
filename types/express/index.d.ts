@@ -6,6 +6,7 @@ declare module "express-serve-static-core" {
       id: string;
       role?: string;
       assignedMosque?: string;
+      membershipStatus?: string;
     };
   }
 }
