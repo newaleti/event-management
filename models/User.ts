@@ -26,6 +26,26 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    phoneNumber: {
+      type: String,
+      required: true,
+      // This regex matches: 0911223344, 0711223344, or +251911223344
+      match: [
+        /^(?:\+251|0)[79]\d{8}$/,
+        "Please enter a valid Ethiopian phone number (09... or 07...)",
+      ],
+    },
+    gender: {
+      type: String,
+      required: true,
+      enum: ["male", "female"], 
+    },
+    age: {
+      type: Number,
+      required: true,
+      min: [5, "Age must be at least 5"],
+      max: [100, "Age must be realistic"],
+    },
     role: {
       type: String,
       enum: ["user", "mosque_admin", "super_admin"],
