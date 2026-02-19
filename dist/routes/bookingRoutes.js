@@ -6,6 +6,9 @@ const router = express.Router();
 // 1. CREATE A BOOKING (Any logged-in user)
 router.post("/", protect, async (req, res) => {
     try {
+        if (!req.user) {
+            return res.status(401).json({ message: "Not authorized" });
+        }
         const { eventId } = req.body;
         // Find the event
         const event = await Event.findById(eventId);
@@ -14,11 +17,10 @@ router.post("/", protect, async (req, res) => {
         }
         // Check if event is restricted and if user has the right membership status
         if (event.accessType === "restricted") {
-            const userStatus = req.user?.membershipStatus; // Ensure your 'protect' middleware puts this in req.user
-            if (userStatus !== "official_member" && userStatus !== "student") {
+            const membership = req.user.mosqueMemberships?.find((m) => m.mosque.toString() === event.mosque.toString());
+            if (!membership || membership.status !== "student") {
                 return res.status(403).json({
-                    message: "This event is restricted to official members or students.",
-                    requiresMembership: true,
+                    message: "You are not a registered student at this specific mosque.",
                 });
             }
         }
@@ -83,13 +85,15 @@ router.delete("/:id", protect, async (req, res) => {
         }
         // Authorization: Check if the booking belongs to the logged-in user
         if (booking.user.toString() !== req.user?.id) {
-            return res.status(403).json({ message: "Not authorized to cancel this booking" });
+            return res
+                .status(403)
+                .json({ message: "Not authorized to cancel this booking" });
         }
         // Prevent double-cancellation logic
         if (booking.status === "cancelled") {
             return res.status(400).json({ message: "Booking is already cancelled" });
         }
-        // We use a transaction-like approach: 
+        // We use a transaction-like approach:
         // 1. Mark booking as cancelled (or delete it, but marking is better for records)
         booking.status = "cancelled";
         await booking.save();
@@ -114,17 +118,24 @@ router.get("/event/:eventId", protect, authorize("mosque_admin", "super_admin"),
         // 2. Security: If Mosque Admin, ensure they own the mosque this event belongs to
         if (req.user?.role === "mosque_admin") {
             if (event.mosque.toString() !== req.user?.assignedMosque?.toString()) {
-                return res.status(403).json({ message: "Not authorized to view attendees for this mosque." });
+                return res
+                    .status(403)
+                    .json({
+                    message: "Not authorized to view attendees for this mosque.",
+                });
             }
         }
         // 3. Get all bookings for this event and pull in User names/emails
-        const attendees = await Booking.find({ event: eventId, status: "confirmed" })
+        const attendees = await Booking.find({
+            event: eventId,
+            status: "confirmed",
+        })
             .populate("user", "username email")
             .select("user bookingDate"); // Only return user info and when they booked
         res.status(200).json({
             eventName: event.title,
             totalAttendees: attendees.length,
-            attendees
+            attendees,
         });
     }
     catch (error) {

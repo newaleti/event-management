@@ -43,9 +43,15 @@ router.put("/:id/decide", protect, authorize("mosque_admin"), async (req, res) =
     request.status = status;
     await request.save();
     if (status === "approved") {
-        // Upgrade the user status to student/member
-        await User.findByIdAndUpdate(request.user, {
-            membershipStatus: "student",
+        await User.findOneAndUpdate({ _id: request.user, "mosqueMemberships.mosque": request.mosque }, { $set: { "mosqueMemberships.$.status": "student" } }).then(async (user) => {
+            // If user didn't already have a membership entry for this mosque, push it
+            if (!user) {
+                await User.findByIdAndUpdate(request.user, {
+                    $push: {
+                        mosqueMemberships: { mosque: request.mosque, status: "student" },
+                    },
+                });
+            }
         });
     }
     res.json({ message: `Application ${status}` });

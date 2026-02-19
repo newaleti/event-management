@@ -2,18 +2,39 @@ import express from "express";
 import bcrypt from "bcrypt";
 import User from "../models/User.js";
 import jwt from "jsonwebtoken";
+import mongoose from "mongoose";
 
 import Mosque from "../models/Mosque.js";
 import { protect, authorize } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
+router.get("/test-ping", (req, res) => res.send("Auth routes are active!"));
+
 // User registration route
 router.post("/register", async (req, res) => {
-  const { firstName, lastName, username, email, password, phoneNumber, gender, age } = req.body;
+  const {
+    firstName,
+    lastName,
+    username,
+    email,
+    password,
+    phoneNumber,
+    gender,
+    age,
+  } = req.body;
 
   // Basic validation
-  if (!firstName || !lastName || !username || !email || !password || !phoneNumber || !gender || !age) {
+  if (
+    !firstName ||
+    !lastName ||
+    !username ||
+    !email ||
+    !password ||
+    !phoneNumber ||
+    !gender ||
+    !age
+  ) {
     return res.status(400).json({ message: "All fields are required" });
   }
 
@@ -210,6 +231,71 @@ router.patch(
     } catch (error) {
       console.error("Unassign Mosque Error:", error);
       res.status(500).json({ message: "Error unassigning mosque admin" });
+    }
+  },
+);
+
+// Promoting a user to a Teacher (Mosque Admin or Super Admin only)
+router.patch(
+  "/assign-teacher/:userId",
+  protect,
+  authorize("mosque_admin", "super_admin"),
+  async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Not authorized" });
+      }
+
+      // 1. Fetch from req.params
+      const targetUser = await User.findById(req.params.userId);
+
+      if (!targetUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // --- THE SECURITY SHIELD ---
+      if (targetUser.role === "super_admin") {
+        return res.status(403).json({
+          message: "Permission Denied: Super Admin roles are protected.",
+        });
+      }
+
+      if (
+        req.user.role === "mosque_admin" &&
+        targetUser.role === "mosque_admin"
+      ) {
+        return res.status(403).json({
+          message:
+            "Permission Denied: You cannot modify another administrator's role.",
+        });
+      }
+
+      // 2. Promote the user
+      targetUser.role = "teacher";
+
+      // Since a Mosque Admin is assigning them, we link the teacher to that mosque
+      if (req.user.role === "mosque_admin") {
+        if (req.user.assignedMosque) {
+          targetUser.assignedMosque = new mongoose.Types.ObjectId(
+            req.user.assignedMosque,
+          );
+        }
+      }
+
+      await targetUser.save();
+
+      res.status(200).json({
+        message: `Success: ${targetUser.username} has been promoted to Teacher status.`,
+        user: {
+          id: targetUser._id,
+          username: targetUser.username,
+          role: targetUser.role,
+          assignedMosque: targetUser.assignedMosque,
+        },
+      });
+    } catch (error) {
+      console.error("Assign Teacher Error:", error);
+      res.status(500).json({ message: "Error assigning teacher role" });
     }
   },
 );

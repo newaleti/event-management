@@ -43,6 +43,13 @@ const eventSchema = new mongoose.Schema({
         enum: ["open", "restricted"],
         default: "open",
     },
+    teacher: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        required: function () {
+            // return this.eventType === "Ders"; // Only mandatory for Ders
+        },
+    },
 }, { timestamps: true });
 // Prevent duplicate events in same mosque by title + date
 eventSchema.index({ mosque: 1, title: 1, date: 1 }, { unique: true });

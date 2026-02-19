@@ -48,7 +48,7 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ["user", "mosque_admin", "super_admin"],
+      enum: ["user", "mosque_admin", "teacher", "super_admin"],
       default: "user",
     },
     assignedMosque: {

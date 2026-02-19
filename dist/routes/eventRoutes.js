@@ -1,5 +1,6 @@
 import express from "express";
 import Event from "../models/Event.js";
+import User from "../models/User.js";
 import { protect, authorize } from "../middleware/authMiddleware.js";
 const router = express.Router();
 // --- 1. SEARCH & FILTERS (Place this BEFORE any /:id routes) ---
@@ -95,11 +96,18 @@ router.post("/", protect, authorize("mosque_admin", "super_admin"), async (req, 
         if (!req.user) {
             return res.status(401).json({ message: "Not authorized" });
         }
-        const { title, description, date, mosque, eventType, capacity, image, location, accessType, } = req.body;
+        const { title, description, date, mosque, eventType, capacity, image, location, accessType, teacher, } = req.body;
         // Basic validation
-        if (!title || !description || !date || !mosque || !image || !location || !accessType) {
+        if (!title ||
+            !description ||
+            !date ||
+            !mosque ||
+            !image ||
+            !location ||
+            !accessType ||
+            !teacher) {
             return res.status(400).json({
-                message: "Required fields: title, description, date, mosque, image, location, accessType",
+                message: "Required fields: title, description, date, mosque, image, location, accessType, teacher",
             });
         }
         // ROLE CHECK: Mosque admins can only post to their assigned mosque
@@ -122,6 +130,12 @@ router.post("/", protect, authorize("mosque_admin", "super_admin"), async (req, 
         if (existing) {
             return res.status(409).json({ message: "Event already exists" });
         }
+        // Update validation: Ders and Muhadera MUST have a teacher/speaker
+        if ((eventType === "Ders" || eventType === "Muhadera") && !teacher) {
+            return res.status(400).json({
+                message: `A teacher/speaker is required for ${eventType} events.`,
+            });
+        }
         const newEvent = new Event({
             title: title.trim(),
             description: description.trim(),
@@ -133,6 +147,7 @@ router.post("/", protect, authorize("mosque_admin", "super_admin"), async (req, 
             image: image.trim(),
             organiser: req.user.id,
             accessType,
+            teacher: teacher.trim() || null,
         });
         const savedEvent = await newEvent.save();
         res.status(201).json(savedEvent);
@@ -194,6 +209,8 @@ router.put("/:id", protect, authorize("mosque_admin", "super_admin"), async (req
         const updates = { ...req.body };
         if (updates.title)
             updates.title = updates.title.trim();
+        if (updates.teacher)
+            updates.teacher = updates.teacher.trim();
         const updatedEvent = await Event.findByIdAndUpdate(req.params.id, updates, { new: true });
         res.status(200).json(updatedEvent);
     }
@@ -222,6 +239,47 @@ router.delete("/:id", protect, authorize("mosque_admin", "super_admin"), async (
     }
     catch (error) {
         res.status(500).json({ message: "Server error" });
+    }
+});
+// 8. ASSIGN TEACHER TO EVENT (Mosque Admin  for their mosque's events)
+router.patch("/assign-teacher-to-event/:eventId", protect, authorize("mosque_admin", "super_admin"), async (req, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({ message: "Not authorized" });
+        }
+        if (!req.user.assignedMosque) {
+            return res.status(403).json({ message: "No mosque assigned." });
+        }
+        const assignedMosqueId = req.user.assignedMosque.toString();
+        const { teacherId } = req.body;
+        const { eventId } = req.params;
+        // 1. Verify the teacher exists and has the correct role
+        const teacher = await User.findById(teacherId);
+        if (!teacher || teacher.role !== "teacher") {
+            return res
+                .status(400)
+                .json({ message: "Selected user is not a registered teacher." });
+        }
+        // 2. Find the event
+        const event = await Event.findById(eventId);
+        if (!event)
+            return res.status(404).json({ message: "Event not found" });
+        // 3. Security: Ensure this Mosque Admin owns this event
+        if (event.mosque.toString() !== req.user.assignedMosque.toString()) {
+            return res.status(403).json({
+                message: "You can only assign teachers to events in your mosque.",
+            });
+        }
+        // 4. Assign the teacher to the event
+        event.teacher = teacherId;
+        await event.save();
+        res.status(200).json({
+            message: `Successfully assigned ${teacher.firstName} to ${event.title}`,
+            event,
+        });
+    }
+    catch (error) {
+        res.status(500).json({ message: "Error assigning teacher to event" });
     }
 });
 export default router;

@@ -30,7 +30,12 @@ export const protect = async (req, res, next) => {
                 id: user._id.toString(),
                 role: user.role,
                 assignedMosque: user.assignedMosque?.toString(),
-                membershipStatus: user.membershipStatus,
+                mosqueMemberships: (user.mosqueMemberships || [])
+                    .filter((m) => m.mosque)
+                    .map((m) => ({
+                    mosque: m.mosque.toString(),
+                    status: m.status,
+                })),
             };
             next();
         }

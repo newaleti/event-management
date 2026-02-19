@@ -45,6 +45,13 @@ const eventSchema = new mongoose.Schema(
       enum: ["open", "restricted"],
       default: "open",
     },
+    teacher: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: function () {
+        // return this.eventType === "Ders"; // Only mandatory for Ders
+      }, 
+    },
   },
   { timestamps: true },
 );
