@@ -1,6 +1,7 @@
 import express from "express";
 import Event from "../models/Event.js";
 import User from "../models/User.js";
+import Booking from "../models/Booking.js";
 import { protect, authorize } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
@@ -164,10 +165,15 @@ router.post(
         return res.status(409).json({ message: "Event already exists" });
       }
 
-      // Update validation: Ders and Muhadera MUST have a teacher/speaker
+      // RULE: If Ders, it MUST be restricted. If Muhadera, it is usually open.
+      if (eventType === "Ders") {
+        req.body.accessType = "restricted";
+      }
+
+      // RULE: Both Ders and Muhadera need a person assigned
       if ((eventType === "Ders" || eventType === "Muhadera") && !teacher) {
         return res.status(400).json({
-          message: `A teacher/speaker is required for ${eventType} events.`,
+          message: `A ${eventType === "Ders" ? "teacher" : "speaker"} is required.`,
         });
       }
 
@@ -181,7 +187,7 @@ router.post(
         capacity: capacity || 0,
         image: image.trim(),
         organiser: req.user.id,
-        accessType,
+        accessType: req.body.accessType || "open",
         teacher: teacher.trim() || null,
       });
 
@@ -356,17 +362,15 @@ router.patch(
   },
 );
 
-// Get all students registered for a specific event (For Teachers)
+// Get all students registered for a specific event
 router.get("/event-students/:eventId", protect, authorize("teacher", "mosque_admin"), async (req, res) => {
   try {
-    // 1. Find all bookings for this event
-    const bookings = await Booking.find({ event: req.params.eventId })
-      .populate("user", "firstName lastName email") // Pull student names from User model
-      .select("user"); // We only need the user info
+    const bookings = await Booking.find({ 
+      event: req.params.eventId, 
+      status: "confirmed" 
+    }).populate("user", "firstName lastName email");
 
-    // 2. Extract the user objects into a clean list
     const studentList = bookings.map(b => b.user);
-
     res.status(200).json(studentList);
   } catch (error) {
     res.status(500).json({ message: "Error fetching student list" });
