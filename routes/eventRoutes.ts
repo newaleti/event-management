@@ -9,7 +9,15 @@ const router = express.Router();
 // --- 1. SEARCH & FILTERS (Place this BEFORE any /:id routes) ---
 router.get("/search", async (req, res) => {
   try {
-    const { keyword, location, category, startDate, endDate, upcoming, mosque } = req.query;
+    const {
+      keyword,
+      location,
+      category,
+      startDate,
+      endDate,
+      upcoming,
+      mosque,
+    } = req.query;
 
     let query: any = {};
 
@@ -92,7 +100,7 @@ router.get("/:id", async (req, res) => {
     const event = await Event.findById(req.params.id)
       .populate("mosque", "name location")
       .populate("organiser", "username");
-    
+
     if (!event) return res.status(404).json({ message: "Event not found" });
     res.status(200).json(event);
   } catch (error) {
@@ -132,12 +140,11 @@ router.post(
         !mosque ||
         !image ||
         !location ||
-        !accessType ||
-        !teacher
+        !accessType
       ) {
         return res.status(400).json({
           message:
-            "Required fields: title, description, date, mosque, image, location, accessType, teacher",
+            "Required fields: title, description, date, mosque, image, location, accessType",
         });
       }
 
@@ -363,18 +370,23 @@ router.patch(
 );
 
 // Get all students registered for a specific event
-router.get("/event-students/:eventId", protect, authorize("teacher", "mosque_admin"), async (req, res) => {
-  try {
-    const bookings = await Booking.find({ 
-      event: req.params.eventId, 
-      status: "confirmed" 
-    }).populate("user", "firstName lastName email");
+router.get(
+  "/event-students/:eventId",
+  protect,
+  authorize("teacher", "mosque_admin"),
+  async (req, res) => {
+    try {
+      const bookings = await Booking.find({
+        event: req.params.eventId,
+        status: "confirmed",
+      }).populate("user", "firstName lastName email");
 
-    const studentList = bookings.map(b => b.user);
-    res.status(200).json(studentList);
-  } catch (error) {
-    res.status(500).json({ message: "Error fetching student list" });
-  }
-});
+      const studentList = bookings.map((b) => b.user);
+      res.status(200).json(studentList);
+    } catch (error) {
+      res.status(500).json({ message: "Error fetching student list" });
+    }
+  },
+);
 
 export default router;
