@@ -6,8 +6,8 @@ const mosqueSchema = new mongoose.Schema(
     address: { type: String, required: true },
     // For Map integration
     location: {
-      type: { type: String, default: "Point" },
-      coordinates: { type: [Number], required: false }, // [Longitude, Latitude]
+      type: { type: String, enum: ["Point"] },
+      coordinates: { type: [Number] }, // [Longitude, Latitude]
     },
     admin: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, // The Mosque Admin
     description: { type: String },
