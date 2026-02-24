@@ -8,7 +8,38 @@ const router = express.Router();
 // 1. USER: Apply for membership
 router.post("/apply", protect, async (req, res) => {
   try {
-    const { mosqueId, message } = req.body;
+    const {
+      mosqueId,
+      message,
+      role,
+      knowledgeLevel,
+      experienceYears,
+      specialization,
+      previousExperience,
+    } = req.body;
+
+    if (!role || (role !== "student" && role !== "teacher")) {
+      return res.status(400).json({ message: "Role is required." });
+    }
+
+    if (role === "student" && !knowledgeLevel) {
+      return res
+        .status(400)
+        .json({ message: "Knowledge level is required for students." });
+    }
+
+    if (role === "teacher") {
+      if (experienceYears === undefined || experienceYears === null) {
+        return res
+          .status(400)
+          .json({ message: "Experience years is required for teachers." });
+      }
+      if (!specialization) {
+        return res
+          .status(400)
+          .json({ message: "Specialization is required for teachers." });
+      }
+    }
 
     // Check if a pending request already exists
     const existing = await MembershipRequest.findOne({
@@ -23,6 +54,11 @@ router.post("/apply", protect, async (req, res) => {
     const newRequest = new MembershipRequest({
       user: req.user?.id,
       mosque: mosqueId,
+      role,
+      knowledgeLevel: role === "student" ? knowledgeLevel : undefined,
+      experienceYears: role === "teacher" ? Number(experienceYears) : undefined,
+      specialization: role === "teacher" ? specialization : undefined,
+      previousExperience: role === "teacher" ? previousExperience : undefined,
       message,
     });
 
@@ -41,7 +77,9 @@ router.get(
   async (req, res) => {
     const requests = await MembershipRequest.find({
       mosque: req.user?.assignedMosque,
-    }).populate("user", "firstName lastName email phoneNumber gender age").sort("-createdAt");
+    })
+      .populate("user", "firstName lastName email phoneNumber gender age")
+      .sort("-createdAt");
     res.json(requests);
   },
 );
@@ -93,45 +131,49 @@ router.delete("/my-requests", protect, async (req, res) => {
 });
 
 // 6. ADMIN: View and Filter applications for their mosque
-router.get("/mosque-requests", protect, authorize("mosque_admin"), async (req, res) => {
-  try {
-    const { name, gender, status } = req.query;
-    
-    // Start with the basic filter: only this admin's mosque
-    let filter: any = { mosque: req.user?.assignedMosque };
+router.get(
+  "/mosque-requests",
+  protect,
+  authorize("mosque_admin"),
+  async (req, res) => {
+    try {
+      const { name, gender, status } = req.query;
 
-    // 1. Filter by Status (pending, approved, rejected)
-    if (status) filter.status = status;
+      // Start with the basic filter: only this admin's mosque
+      let filter: any = { mosque: req.user?.assignedMosque };
 
-    // Prepare the User population with optional filters
-    const userMatch: any = {};
-    if (gender) userMatch.gender = gender;
-    
-    // 2. Filter by Name (Search)
-    if (name) {
-      userMatch.$or = [
-        { firstName: { $regex: name, $options: "i" } },
-        { lastName: { $regex: name, $options: "i" } }
-      ];
+      // 1. Filter by Status (pending, approved, rejected)
+      if (status) filter.status = status;
+
+      // Prepare the User population with optional filters
+      const userMatch: any = {};
+      if (gender) userMatch.gender = gender;
+
+      // 2. Filter by Name (Search)
+      if (name) {
+        userMatch.$or = [
+          { firstName: { $regex: name, $options: "i" } },
+          { lastName: { $regex: name, $options: "i" } },
+        ];
+      }
+
+      const requests = await MembershipRequest.find(filter)
+        .populate({
+          path: "user",
+          match: userMatch, // This filters the JOINED user data
+          select: "firstName lastName email phoneNumber gender age",
+        })
+        .sort("-createdAt");
+
+      // Because .populate(match) returns null for non-matching users,
+      // we filter out the nulls before sending to frontend
+      const filteredRequests = requests.filter((req) => req.user !== null);
+
+      res.json(filteredRequests);
+    } catch (error) {
+      res.status(500).json({ message: "Error fetching filtered requests" });
     }
-
-    const requests = await MembershipRequest.find(filter)
-      .populate({
-        path: "user",
-        match: userMatch, // This filters the JOINED user data
-        select: "firstName lastName email phoneNumber gender age"
-      })
-      .sort("-createdAt");
-
-    // Because .populate(match) returns null for non-matching users, 
-    // we filter out the nulls before sending to frontend
-    const filteredRequests = requests.filter(req => req.user !== null);
-
-    res.json(filteredRequests);
-  } catch (error) {
-    res.status(500).json({ message: "Error fetching filtered requests" });
-  }
-});
-
+  },
+);
 
 export default router;

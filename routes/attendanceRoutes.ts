@@ -14,6 +14,11 @@ router.post("/submit", protect, authorize("teacher"), async (req, res) => {
     }
 
     const { eventId, records, date } = req.body;
+    if (!Array.isArray(records) || records.length === 0) {
+      return res
+        .status(400)
+        .json({ message: "Attendance records are required." });
+    }
 
     // 1. Check if event exists
     const event = await Event.findById(eventId);
@@ -33,12 +38,22 @@ router.post("/submit", protect, authorize("teacher"), async (req, res) => {
       });
     }
 
-    // 3. Create the attendance record
+    // 3. Normalize duplicate students by keeping the latest entry
+    const latestByStudent = new Map<string, any>();
+    records.forEach((record) => {
+      const studentId = String(record?.student || "");
+      if (!studentId) return;
+      latestByStudent.set(studentId, record);
+    });
+
+    const normalizedRecords = Array.from(latestByStudent.values());
+
+    // 4. Create the attendance record
     const newAttendance = new Attendance({
       event: eventId,
       teacher: req.user.id,
       date: date || Date.now(),
-      records,
+      records: normalizedRecords,
     });
 
     await newAttendance.save();

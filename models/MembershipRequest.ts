@@ -12,6 +12,27 @@ const membershipRequestSchema = new mongoose.Schema(
       ref: "Mosque",
       required: true,
     },
+    role: {
+      type: String,
+      enum: ["student", "teacher"],
+      required: true,
+    },
+    knowledgeLevel: {
+      type: String,
+      enum: ["Beginner", "Nezer Quran", "Quran Hifz", "Kitabs"],
+    },
+    experienceYears: {
+      type: Number,
+      min: 0,
+    },
+    specialization: {
+      type: String,
+      trim: true,
+    },
+    previousExperience: {
+      type: String,
+      trim: true,
+    },
     status: {
       type: String,
       enum: ["pending", "approved", "rejected"],
