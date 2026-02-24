@@ -9,6 +9,10 @@ router.post("/", protect, authorize("super_admin"), async (req, res) => {
   try {
     const { name, address, coordinates, description } = req.body;
 
+    if (!name || !address) {
+      return res.status(400).json({ message: "Name and address are required" });
+    }
+
     const existing = await Mosque.findOne({
       name: name?.trim(),
       address: address?.trim(),
@@ -19,15 +23,18 @@ router.post("/", protect, authorize("super_admin"), async (req, res) => {
     }
 
     const newMosque = new Mosque({
-      name: name?.trim(),
-      address: address?.trim(),
-      location: { type: "Point", coordinates },
+      name: name.trim(),
+      address: address.trim(),
       description,
+      ...(Array.isArray(coordinates) && coordinates.length === 2
+        ? { location: { type: "Point", coordinates } }
+        : {}),
     });
 
     const savedMosque = await newMosque.save();
     res.status(201).json(savedMosque);
   } catch (error) {
+    console.error("Error creating mosque:", error);
     res.status(500).json({ message: "Error creating mosque" });
   }
 });
